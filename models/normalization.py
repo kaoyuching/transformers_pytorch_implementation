@@ -21,6 +21,7 @@ class RMSNorm(nn.Module):
         r"""
         s shape: (b, seq_len, emb_dim)
         """
+        x = x.type(torch.float32)
         rms = torch.sqrt(torch.mean(torch.square(x), dim=-1, keepdim=True))
         x = x / (rms + self.eps)
         x = x * self.gain + self.bias
