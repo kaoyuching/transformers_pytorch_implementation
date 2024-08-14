@@ -107,11 +107,11 @@ class DecoderBlock(nn.Module):
         self.norm_attn = nn.LayerNorm(emb_dim)
         self.norm_mlp = nn.LayerNorm(emb_dim)
 
-    def forward(self, x: torch.Tensor, encode_k, encode_v, attn_mask: Optional[torch.tensor] = None):
+    def forward(self, x: torch.Tensor, encoder_output, attn_mask: Optional[torch.tensor] = None):
         mask_attn_x = self.mask_multi_head_attn(x, x, x, attn_mask=attn_mask)
         x = self.norm_mask_attn(x + mask_attn_x) # next input q
 
-        attn_x = self.multi_head_attn(x, encode_k, encode_v, attn_mask=None)
+        attn_x = self.multi_head_attn(x, encoder_output, encoder_output, attn_mask=None)
         x = self.norm_attn(x + attn_x) # next input q
 
         mlp_x = torch.clone(x)
@@ -167,13 +167,13 @@ class Decoder(nn.Module):
         self.linear = nn.Linear(emb_dim, emb_dim)
         self.softmax = nn.Softmax(emb_dim)
 
-    def forward(self, x: torch.Tensor, encode_k, encode_v, attn_mask: Optional[torch.tensor] = None):
+    def forward(self, x: torch.Tensor, encoder_output, attn_mask: Optional[torch.tensor] = None):
         x_emb = self.input_embedding(x)
         pe = self.pos_encoding(x)
         x_emb = x_emb + pe
 
         x_block = torch.clone(x_emb)
         for block in self.decoder_blocks:
-            x_block = block(x_block, encode_k, encode_v, attn_mask=attn_mask)
+            x_block = block(x_block, encoder_output, attn_mask=attn_mask)
         output = self.linear(x_block)
         return self.softmax(output)
