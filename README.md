@@ -1,5 +1,6 @@
-# Implement language model's components with PyTorch
+# Implement Transformers with PyTorch
 
 - [x] RMSNorm
 - [x] Self Attention
 - [x] Multi-head Self Attention
+- [x] Transformers
