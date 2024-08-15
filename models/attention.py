@@ -2,7 +2,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
-from models.positional_embedding import PositionalEncodeing
+from models.positional_embedding import PositionalEncodeing, RotaryPositonalEncoding
 
 
 class SelfAttention(nn.Module):
@@ -129,19 +129,35 @@ class Encoder(nn.Module):
         num_heads: int,
         emb_max_norm: bool = True,
         n_blocks: int = 6,
+        pos_encoding_type: Literal["absolute", "rotary"] = "absolute",
     ):
         super().__init__()
         self.input_embedding = nn.Embedding(num_emb, emb_dim, max_norm=emb_max_norm)
-        self.pos_encoding = PositionalEncodeing()
+        self.pos_encoding_type = self._check_pos_type(pos_encoding_type)
+        if self.pos_encoding_type == "absolute":
+            self.pos_encoding = PositionalEncodeing()
+        elif self.pos_encoding_type == "rotary":
+            self.pos_encoding = RotaryPositonalEncoding()
         self.encoder_blocks = nn.ModuleList([
             EncoderBlock(emb_dim, num_heads) for i in range(n_blocks)
         ])
 
+    def _check_pos_type(self, pos_type: str):
+        pos_type = pos_type.lower()
+        if pos_type not in ["absolute", "rotary"]:
+            return "absolute"
+        else:
+            return pos_type
+
     def forward(self, x: torch.Tensor):
         # input > emb > add pos_encoding > multi-head attn > MLP
         x_emb = self.input_embedding(x)
-        pe = self.pos_encoding(x)
-        x_emb = x_emb + pe
+
+        if self.pos_encoding_type == "rotary":
+            x_emb = self.pos_encoding(x_emb)
+        else:
+            pe = self.pos_encoding(x)
+            x_emb = x_emb + pe
 
         x_block = torch.clone(x_emb)
         for block in self.encoder_blocks:
@@ -157,20 +173,36 @@ class Decoder(nn.Module):
         num_heads: int,
         emb_max_norm: bool = True,
         n_blocks: int = 6,
+        pos_encoding_type: Literal["absolute", "rotary"] = "absolute",
     ):
         super().__init__()
         self.input_embedding = nn.Embedding(num_emb, emb_dim, max_norm=emb_max_norm)
-        self.pos_encoding = PositionalEncodeing()
+        self.pos_encoding_type = self._check_pos_type(pos_encoding_type)
+        if self.pos_encoding_type == "absolute":
+            self.pos_encoding = PositionalEncodeing()
+        elif self.pos_encoding_type == "rotary":
+            self.pos_encoding = RotaryPositonalEncoding()
         self.decoder_blocks = nn.ModuleList([
             DecoderBlock(emb_dim, num_heads) for i in range(n_blocks)
         ])
         self.linear = nn.Linear(emb_dim, emb_dim)
         self.softmax = nn.Softmax(emb_dim)
 
+    def _check_pos_type(self, pos_type: str):
+        pos_type = pos_type.lower()
+        if pos_type not in ["absolute", "rotary"]:
+            return "absolute"
+        else:
+            return pos_type
+
     def forward(self, x: torch.Tensor, encoder_output, attn_mask: Optional[torch.tensor] = None):
         x_emb = self.input_embedding(x)
-        pe = self.pos_encoding(x)
-        x_emb = x_emb + pe
+
+        if self.pos_encoding_type == "rotary":
+            x_emb = self.pos_encoding(x_emb)
+        else:
+            pe = self.pos_encoding(x)
+            x_emb = x_emb + pe
 
         x_block = torch.clone(x_emb)
         for block in self.decoder_blocks:
